@@ -1,4 +1,5 @@
 const express = require('express');
+const slugify = require('slugify');
 const db = require("../db");
 const ExpressError = require('../expressError');
 
@@ -17,21 +18,40 @@ router.get("", async function (req, res, next) {
 router.get("/:code", async function (req, res, next) {
     try {
         const compResult = await db.query(
-            `SELECT * FROM companies
-            WHERE code= $1`, [req.params.code]
+            `SELECT c.code, c.name, c.description,
+                i.industry,
+                inv.id, inv.amt, inv.paid
+                FROM companies AS c
+                    LEFT JOIN companies_industries AS ci
+                        ON c.code = ci.comp_code
+                    LEFT JOIN industries AS i
+                        ON ci.ind_code = i.code
+                    LEFT JOIN invoices AS inv
+                        ON c.code = inv.comp_code
+                WHERE c.code= $1`, [req.params.code]
         );
-        const invResult = await db.query(
-            `SELECT * FROM invoices
-            WHERE comp_Code= $1`, [req.params.code]
-        )
+
+
         if(compResult.rowCount === 0) {
             throw new ExpressError(`No such company ${req.params.code} found.`, 404);
         }
 
-        const company = compResult.rows[0];
-        const invoices = invResult.rows;
+        const { code, name, description } = compResult.rows[0];
+        const company = {
+            "name": name,
+            "code": code,
+            "description": description,
+            "industries": [],
+            "invoices": []
+        };
 
-        company.invoices = invoices;
+        compResult.rows.forEach((r) => {
+            if(company.industries.indexOf(r.industry) === -1) {
+                company.industries.push(r.industry)
+            }
+            company.invoices.push({'id': r.id, 'amt': r.amt, 'paid': r.paid})
+        })
+
         return res.json({company: company});
     } 
     catch(err) {
@@ -42,7 +62,8 @@ router.get("/:code", async function (req, res, next) {
 
 router.post("", async function(req, res, next) {
     try {
-        const {code, name, description } = req.body;
+        const { name, description } = req.body;
+        const code = slugify(name, {remove: /[*+~.()'"!:@]/g, lower: true});
 
         const result = await db.query(
             `INSERT INTO companies (code, name, description)
@@ -70,8 +91,7 @@ router.put("/:code", async function (req, res, next) {
         if(result.rowCount === 0) {
             throw new ExpressError(`No such company ${req.params.code} found.`, 404);
         }
-        console.log("RESULT.ROWS", result.rows);
-        return res.json({company: result.rows});
+        return res.json({company: result.rows[0]});
     } 
     catch(err) {
         return next(err);

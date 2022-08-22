@@ -4,6 +4,8 @@
  *  The error-handling middleware will return this.
  */
 
+const db = require("./db");
+
 class ExpressError extends Error {
   constructor(message, status) {
     super();
