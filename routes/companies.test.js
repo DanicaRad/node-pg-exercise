@@ -8,14 +8,14 @@ const slugify = require("slugify");
 
 let testCo;
 
-beforeAll(async function() {
+beforeEach(async function() {
     const name = "Test Company";
-    const code = slugify(name, {remove: /[*+~.()'"!:@]/g, lower: true});
+    const testCode = slugify(name, {remove: /[*+~.()'"!:@]/g, lower: true});
 
     let coResult = await db.query(`
     INSERT INTO
         companies (code, name) VALUES ($1, $2)
-        RETURNING code, name, description`, [code, name]);
+        RETURNING code, name, description`, [testCode, name]);
 
     testCo = coResult.rows[0];
 
@@ -93,7 +93,10 @@ describe("DELETE /companies/:code", function() {
     });
 });
 
-afterAll(async function() {
+afterEach(async function() {
     await db.query(`DELETE FROM companies WHERE code = $1`, [testCo.code]);
+});
+
+afterAll(async function() {
     await db.end();
 });
